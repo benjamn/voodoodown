@@ -43,7 +43,6 @@ var Heads = {};
 var LRStack = null;
 
 function Recall(R, s) {
-    R.memo = R.memo || {};
     var m = R.memo[s],
         h = Heads[s];
     if (!h) {
@@ -120,39 +119,50 @@ function GrowLR(R, s, M, H) {
     return M.ans;
 }
 
-function digit(s) {
+function memo(rule) {
+    rule.memo = rule.memo || {};
+    rule.parser = function(s) {
+        return ApplyRule(rule, s);
+    }
+    rule.parser.toString = function() rule + "";
+    return rule.parser;
+}
+
+var digit = memo(function(s) {
     var ch = s.at(0);
     if (/[0-9]/.test(ch))
         return s.shift(1);
     return fail;
-}
+});
 
-function dash(s) {
+var dash = memo(function(s) {
     var ch = s.at(0);
     if (ch == '-')
         return s.shift(1);
     return fail;
-}
+});
 
-function seq(s) {
-    var e = ApplyRule(expr, s);
+var seq = memo(function(s) {
+    var e = expr(s);
     if (e === fail)
         return e;
-    var d = ApplyRule(dash, e);
+    var d = dash(e);
     if (d === fail)
         return d;
-    return ApplyRule(digit, d);
-}
+    return digit(d);
+});
 
-function expr(s) {
-    var e = ApplyRule(seq, s);
+var expr = memo(function(s) {
+    var e = seq(s);
     if (e != fail)
         return e;
-    return ApplyRule(digit, s);
-}
+    return digit(s);
+});
 
 function parse(str) {
-    return ApplyRule(expr, new state(str));
+    return expr(new state(str));
 }
 
+var start = new Date().getTime();
 console.log(parse("1-2-3"));
+console.log(new Date().getTime() - start, "ms");
