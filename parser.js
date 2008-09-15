@@ -4,7 +4,6 @@ function state(input, pos) {
     this.toString = function() input.slice(pos);
     this.at = function(i) input[pos + i];
     this.shift = function(by) new state(input, pos + by);
-    this.pos = pos;
 }
 
 function inherit(obj, properties) {
@@ -16,9 +15,8 @@ function inherit(obj, properties) {
     return new ctor;
 }
 
-function MemoEntry(ans, pos) {
+function MemoEntry(ans) {
     this.ans = ans;
-    this.pos = pos;
 }
 
 function LR(seed, rule, head, next) {
@@ -49,12 +47,11 @@ function Recall(R, s) {
         return m;
     }
     if (!m && h.involvedSet[R] != R) {
-        return new MemoEntry(fail, s.pos);
+        return new MemoEntry(fail);
     }
     if (h.evalSet[R] === R) {
         h.evalSet[R] = null;
         m.ans = R.call(s);
-        m.pos = fail === m.ans ? s.pos : m.ans.pos;
     }
     return m;
 }
@@ -69,15 +66,14 @@ function ApplyRule(R, s) {
     } else {
         var lr = new LR(fail, R, null, LRStack);
         LRStack = lr;
-        m = new MemoEntry(lr, s.pos);
+        m = new MemoEntry(lr);
         R.memo[s] = m;
         var ans = R.call(s);
-        m.pos = fail === ans ? s.pos : ans.pos;
         LRStack = LRStack.next;
         if (lr.head) {
             lr.seed = ans;
             return LRAnswer(R, s, m);
-        } else {    
+        } else {
             return m.ans = ans;
         }
     }
@@ -92,7 +88,8 @@ function SetupLR(R, L) {
 }
 
 function LRAnswer(R, s, M) {
-    var h = M.ans.head;
+    var lr = M.ans,
+        h = lr.head;
     if (h.rule != R)
         return M.ans.seed;
     else {
@@ -110,10 +107,9 @@ function GrowLR(R, s, M, H) {
         var ans = R.call(s);
         if (ans === fail)
             break;
-        if (ans.pos <= M.pos)
+        if ((ans+"").length >= (M.ans+"").length)
             break;
         M.ans = ans;
-        M.pos = ans.pos;
     }
     delete Heads[s];
     return M.ans;
@@ -164,5 +160,5 @@ function parse(str) {
 }
 
 var start = new Date().getTime();
-console.log(parse("1-2-3"));
+console.log(parse("1-2-3-4-5-6-7"));
 console.log(new Date().getTime() - start, "ms");
