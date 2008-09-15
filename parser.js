@@ -43,26 +43,24 @@ var Heads = {};
 var LRStack = null;
 
 function Recall(R, s) {
-    const P = s.pos;
     R.memo = R.memo || {};
-    var m = R.memo[P],
-        h = Heads[P];
+    var m = R.memo[s],
+        h = Heads[s];
     if (!h) {
         return m;
     }
     if (!m && h.involvedSet[R] != R) {
-        return new MemoEntry(fail, P);
+        return new MemoEntry(fail, s.pos);
     }
     if (h.evalSet[R] === R) {
         h.evalSet[R] = null;
         m.ans = R(s);
-        m.pos = fail === m.ans ? P : m.ans.pos;
+        m.pos = fail === m.ans ? s.pos : m.ans.pos;
     }
     return m;
 }
 
 function ApplyRule(R, s) {
-    const P = s.pos;
     var m = Recall(R, s);
     if (m) {
         if (m.ans instanceof LR) {
@@ -72,10 +70,10 @@ function ApplyRule(R, s) {
     } else {
         var lr = new LR(fail, R, null, LRStack);
         LRStack = lr;
-        m = new MemoEntry(lr, P);
-        R.memo[P] = m;
+        m = new MemoEntry(lr, s.pos);
+        R.memo[s] = m;
         var ans = R(s);
-        m.pos = fail === ans ? P : ans.pos;
+        m.pos = fail === ans ? s.pos : ans.pos;
         LRStack = LRStack.next;
         if (lr.head) {
             lr.seed = ans;
@@ -107,8 +105,7 @@ function LRAnswer(R, s, M) {
 }
 
 function GrowLR(R, s, M, H) {
-    const P = s.pos;
-    Heads[P] = H;
+    Heads[s] = H;
     while (true) {
         H.evalSet = inherit(H.involvedSet);
         var ans = R(s);
@@ -119,7 +116,7 @@ function GrowLR(R, s, M, H) {
         M.ans = ans;
         M.pos = ans.pos;
     }
-    delete Heads[P];
+    delete Heads[s];
     return M.ans;
 }
 
