@@ -51,7 +51,7 @@ function Recall(R, s) {
     }
     if (h.evalSet[R] === R) {
         h.evalSet[R] = null;
-        m.ans = R.call(s);
+        R.memo[s].ans = R.call(s);
     }
     return m;
 }
@@ -96,23 +96,23 @@ function LRAnswer(R, s, M) {
         M.ans = M.ans.seed;
         if (M.ans === fail)
             return fail;
-        return GrowLR(R, s, M, h);
+        GrowLR(R, s, h);
+        return R.memo[s].ans;
     }
 }
 
-function GrowLR(R, s, M, H) {
+function GrowLR(R, s, H) {
     Heads[s] = H;
     while (true) {
         H.evalSet = inherit(H.involvedSet);
         var ans = R.call(s);
         if (ans === fail)
             break;
-        if ((ans+"").length >= (M.ans+"").length)
+        if ((ans+"").length >= (R.memo[s].ans+"").length)
             break;
-        M.ans = ans;
+        R.memo[s] = new MemoEntry(ans);
     }
     delete Heads[s];
-    return M.ans;
 }
 
 function memo(rule) {
