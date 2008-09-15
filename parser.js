@@ -56,7 +56,9 @@ function Recall(R, P) {
     }
     if (h.evalSet[R] === R) {
         h.evalSet[R] = null;
-        m.ans = R();
+        m.ans = R(new state(input, Pos));
+        if (m.ans != fail)
+            Pos = m.ans.pos;
         m.pos = Pos;
     }
     return m;
@@ -75,7 +77,9 @@ function ApplyRule(R, P) {
         LRStack = lr;
         m = new MemoEntry(lr, P);
         R.memo[P] = m;
-        var ans = R();
+        var ans = R(new state(input, Pos));
+        if (ans != fail)
+            Pos = ans.pos;
         LRStack = LRStack.next;
         m.pos = Pos;
         if (lr.head) {
@@ -112,8 +116,11 @@ function GrowLR(R, P, M, H) {
     while (true) {
         Pos = P;
         H.evalSet = inherit(H.involvedSet);
-        var ans = R();
-        if (ans === fail || Pos <= M.pos)
+        var ans = R(new state(input, Pos));
+        if (ans === fail)
+            break;
+        Pos = ans.pos;
+        if (Pos <= M.pos)
             break;
         M.ans = ans;
         M.pos = Pos;
@@ -123,42 +130,35 @@ function GrowLR(R, P, M, H) {
     return M.ans;
 }
 
-function digit() {
-    var ch = input[Pos];
-    if (/[0-9]/.test(ch)) {
-        Pos += 1;
-        return +ch;
-    }
+function digit(s) {
+    var ch = s.at(0);
+    if (/[0-9]/.test(ch))
+        return new state(input, Pos + 1);
     return fail;
 }
 
-function dash() {
-    var ch = input[Pos];
-    if (ch == '-') {
-        Pos += 1;
-        return ch;
-    }
+function dash(s) {
+    var ch = s.at(0);
+    if (ch == '-')
+        return new state(input, Pos + 1);
     return fail;
 }
 
-function seq() {
-    var e = ApplyRule(expr, Pos);
+function seq(s) {
+    var e = ApplyRule(expr, s.pos);
     if (e === fail)
         return e;
-    var d = ApplyRule(dash, Pos);
+    var d = ApplyRule(dash, e.pos);
     if (d === fail)
         return d;
-    d = ApplyRule(digit, Pos);
-    if (d === fail)
-        return d;
-    return [e, d];
+    return ApplyRule(digit, d.pos);
 }
 
-function expr() {
-    var e = ApplyRule(seq, Pos);
+function expr(s) {
+    var e = ApplyRule(seq, s.pos);
     if (e != fail)
         return e;
-    return ApplyRule(digit, Pos);
+    return ApplyRule(digit, s.pos);
 }
 
 function parse(str) {
