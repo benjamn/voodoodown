@@ -30,7 +30,7 @@ var input;
 
 var Pos = 0;
 
-var fail = {};
+const fail = { toString: function() "fail" };
 
 var Heads = {};
 
