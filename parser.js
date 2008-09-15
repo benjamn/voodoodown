@@ -53,7 +53,7 @@ function Recall(R, s) {
     }
     if (h.evalSet[R] === R) {
         h.evalSet[R] = null;
-        m.ans = R(s);
+        m.ans = R.call(s);
         m.pos = fail === m.ans ? s.pos : m.ans.pos;
     }
     return m;
@@ -71,7 +71,7 @@ function ApplyRule(R, s) {
         LRStack = lr;
         m = new MemoEntry(lr, s.pos);
         R.memo[s] = m;
-        var ans = R(s);
+        var ans = R.call(s);
         m.pos = fail === ans ? s.pos : ans.pos;
         LRStack = LRStack.next;
         if (lr.head) {
@@ -107,7 +107,7 @@ function GrowLR(R, s, M, H) {
     Heads[s] = H;
     while (true) {
         H.evalSet = inherit(H.involvedSet);
-        var ans = R(s);
+        var ans = R.call(s);
         if (ans === fail)
             break;
         if (ans.pos <= M.pos)
@@ -128,22 +128,22 @@ function memo(rule) {
     return rule.parser;
 }
 
-var digit = memo(function(s) {
-    var ch = s.at(0);
+var digit = memo(function() {
+    var ch = this.at(0);
     if (/[0-9]/.test(ch))
-        return s.shift(1);
+        return this.shift(1);
     return fail;
 });
 
-var dash = memo(function(s) {
-    var ch = s.at(0);
+var dash = memo(function() {
+    var ch = this.at(0);
     if (ch == '-')
-        return s.shift(1);
+        return this.shift(1);
     return fail;
 });
 
-var seq = memo(function(s) {
-    var e = expr(s);
+var seq = memo(function() {
+    var e = expr(this);
     if (e === fail)
         return e;
     var d = dash(e);
@@ -152,11 +152,11 @@ var seq = memo(function(s) {
     return digit(d);
 });
 
-var expr = memo(function(s) {
-    var e = seq(s);
+var expr = memo(function() {
+    var e = seq(this);
     if (e != fail)
         return e;
-    return digit(s);
+    return digit(this);
 });
 
 function parse(str) {
