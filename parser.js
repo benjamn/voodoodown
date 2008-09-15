@@ -66,15 +66,14 @@ function ApplyRule(R, s) {
     } else {
         var lr = new LR(fail, R, null, LRStack);
         LRStack = lr;
-        m = new MemoEntry(lr);
-        R.memo[s] = m;
+        R.memo[s] = new MemoEntry(lr);
         var ans = R.call(s);
         LRStack = LRStack.next;
         if (lr.head) {
             lr.seed = ans;
-            return LRAnswer(R, s, m);
+            return LRAnswer(R, s, lr);
         } else {
-            return m.ans = ans;
+            return R.memo[s].ans = ans;
         }
     }
 }
@@ -87,14 +86,13 @@ function SetupLR(R, L) {
     }
 }
 
-function LRAnswer(R, s, M) {
-    var lr = M.ans,
-        h = lr.head;
+function LRAnswer(R, s, lr) {
+    var h = lr.head;
     if (h.rule != R)
-        return M.ans.seed;
+        return lr.seed;
     else {
-        M.ans = M.ans.seed;
-        if (M.ans === fail)
+        R.memo[s].ans = lr.seed;
+        if (lr.seed === fail)
             return fail;
         GrowLR(R, s, h);
         return R.memo[s].ans;
