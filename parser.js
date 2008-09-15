@@ -40,6 +40,13 @@ var Heads = {};
 
 var LRStack = null;
 
+function store(R, s, ans) {
+    if (s in R.memo)
+        R.memo[s].ans = ans;
+    else
+        R.memo[s] = new MemoEntry(ans);
+}
+
 function Recall(R, s) {
     var m = R.memo[s],
         h = Heads[s];
@@ -51,7 +58,7 @@ function Recall(R, s) {
     }
     if (h.evalSet[R] === R) {
         h.evalSet[R] = null;
-        R.memo[s].ans = R.call(s);
+        store(R, s, R.call(s));
     }
     return m;
 }
@@ -66,14 +73,15 @@ function ApplyRule(R, s) {
     } else {
         var lr = new LR(fail, R, null, LRStack);
         LRStack = lr;
-        R.memo[s] = new MemoEntry(lr);
+        store(R, s, lr);
         var ans = R.call(s);
         LRStack = LRStack.next;
         if (lr.head) {
             lr.seed = ans;
             return LRAnswer(R, s, lr);
         } else {
-            return R.memo[s].ans = ans;
+            store(R, s, ans);
+            return ans;
         }
     }
 }
@@ -91,7 +99,7 @@ function LRAnswer(R, s, lr) {
     if (h.rule != R)
         return lr.seed;
     else {
-        R.memo[s].ans = lr.seed;
+        store(R, s, lr.seed);
         if (lr.seed === fail)
             return fail;
         GrowLR(R, s, h);
@@ -108,7 +116,7 @@ function GrowLR(R, s, H) {
             break;
         if ((ans+"").length >= (R.memo[s].ans+"").length)
             break;
-        R.memo[s] = new MemoEntry(ans);
+        store(R, s, ans);
     }
     delete Heads[s];
 }
