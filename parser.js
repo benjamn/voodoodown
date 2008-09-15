@@ -8,18 +8,6 @@ function inherit(obj, properties) {
     return new ctor;
 }
 
-var Memo = (function(cache) {
-    function Memo(R, P, m) {
-        if (!(R in cache))
-            cache[R] = {};
-        return arguments.length > 2 
-            ? cache[R][P] = m
-            : cache[R][P];
-    }
-    Memo.clear = function() cache = {};
-    return Memo;
-})({});
-
 function MemoEntry(ans, pos) {
     this.ans = ans;
     this.pos = pos;
@@ -49,7 +37,8 @@ var Heads = {};
 var LRStack = null;
 
 function Recall(R, P) {
-    var m = Memo(R, P),
+    R.memo = R.memo || {};
+    var m = R.memo[P],
         h = Heads[P];
     if (!h) {
         return m;
@@ -77,7 +66,7 @@ function ApplyRule(R, P) {
         var lr = new LR(fail, R, null, LRStack);
         LRStack = lr;
         m = new MemoEntry(lr, P);
-        Memo(R, P, m);
+        R.memo[P] = m;
         var ans = R();
         LRStack = LRStack.next;
         m.pos = Pos;
@@ -167,7 +156,6 @@ function expr() {
 function parse(str) {
     input = str;
     Pos = 0;
-    Memo.clear();
     return ApplyRule(expr, Pos);
 }
 
