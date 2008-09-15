@@ -1,4 +1,12 @@
 
+function state(input, pos) {
+    pos = pos || 0;
+    this.toString = function() input.slice(pos);
+    this.at = function(i) input[pos + i];
+    this.shift = function(by) new state(input, pos + by);
+    this.pos = pos;
+}
+
 function inherit(obj, properties) {
     var ctor = function() {
         for (var k in properties)
