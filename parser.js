@@ -42,7 +42,8 @@ var Heads = {};
 
 var LRStack = null;
 
-function Recall(R, P) {
+function Recall(R, s) {
+    const P = s.pos;
     R.memo = R.memo || {};
     var m = R.memo[P],
         h = Heads[P];
@@ -54,14 +55,15 @@ function Recall(R, P) {
     }
     if (h.evalSet[R] === R) {
         h.evalSet[R] = null;
-        m.ans = R(new state(input, P));
-        m.pos = m.ans === fail ? P : m.ans.pos;
+        m.ans = R(s);
+        m.pos = fail === m.ans ? P : m.ans.pos;
     }
     return m;
 }
 
-function ApplyRule(R, P) {
-    var m = Recall(R, P);
+function ApplyRule(R, s) {
+    const P = s.pos;
+    var m = Recall(R, s);
     if (m) {
         if (m.ans instanceof LR) {
             SetupLR(R, m.ans);
@@ -72,13 +74,12 @@ function ApplyRule(R, P) {
         LRStack = lr;
         m = new MemoEntry(lr, P);
         R.memo[P] = m;
-        var ans = R(new state(input, m.pos = P));
-        if (ans != fail)
-            m.pos = ans.pos;
+        var ans = R(s);
+        m.pos = fail === ans ? P : ans.pos;
         LRStack = LRStack.next;
         if (lr.head) {
             lr.seed = ans;
-            return LRAnswer(R, P, m);
+            return LRAnswer(R, s, m);
         } else {    
             return m.ans = ans;
         }
@@ -93,7 +94,7 @@ function SetupLR(R, L) {
     }
 }
 
-function LRAnswer(R, P, M) {
+function LRAnswer(R, s, M) {
     var h = M.ans.head;
     if (h.rule != R)
         return M.ans.seed;
@@ -101,15 +102,16 @@ function LRAnswer(R, P, M) {
         M.ans = M.ans.seed;
         if (M.ans === fail)
             return fail;
-        return GrowLR(R, P, M, h);
+        return GrowLR(R, s, M, h);
     }
 }
 
-function GrowLR(R, P, M, H) {
+function GrowLR(R, s, M, H) {
+    const P = s.pos;
     Heads[P] = H;
     while (true) {
         H.evalSet = inherit(H.involvedSet);
-        var ans = R(new state(input, P));
+        var ans = R(s);
         if (ans === fail)
             break;
         if (ans.pos <= M.pos)
@@ -136,25 +138,24 @@ function dash(s) {
 }
 
 function seq(s) {
-    var e = ApplyRule(expr, s.pos);
+    var e = ApplyRule(expr, s);
     if (e === fail)
         return e;
-    var d = ApplyRule(dash, e.pos);
+    var d = ApplyRule(dash, e);
     if (d === fail)
         return d;
-    return ApplyRule(digit, d.pos);
+    return ApplyRule(digit, d);
 }
 
 function expr(s) {
-    var e = ApplyRule(seq, s.pos);
+    var e = ApplyRule(seq, s);
     if (e != fail)
         return e;
-    return ApplyRule(digit, s.pos);
+    return ApplyRule(digit, s);
 }
 
 function parse(str) {
-    input = str;
-    return ApplyRule(expr, 0);
+    return ApplyRule(expr, new state(str));
 }
 
 console.log(parse("1-2-3"));
