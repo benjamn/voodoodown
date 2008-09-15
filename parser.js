@@ -36,8 +36,6 @@ function Head(rule) {
 
 var input;
 
-var Pos = 0;
-
 const fail = { toString: function() "fail" };
 
 var Heads = {};
@@ -56,10 +54,8 @@ function Recall(R, P) {
     }
     if (h.evalSet[R] === R) {
         h.evalSet[R] = null;
-        m.ans = R(new state(input, Pos));
-        if (m.ans != fail)
-            Pos = m.ans.pos;
-        m.pos = Pos;
+        m.ans = R(new state(input, P));
+        m.pos = m.ans === fail ? P : m.ans.pos;
     }
     return m;
 }
@@ -67,7 +63,6 @@ function Recall(R, P) {
 function ApplyRule(R, P) {
     var m = Recall(R, P);
     if (m) {
-        Pos = m.pos;
         if (m.ans instanceof LR) {
             SetupLR(R, m.ans);
             return m.ans.seed;
@@ -77,11 +72,10 @@ function ApplyRule(R, P) {
         LRStack = lr;
         m = new MemoEntry(lr, P);
         R.memo[P] = m;
-        var ans = R(new state(input, Pos));
+        var ans = R(new state(input, m.pos = P));
         if (ans != fail)
-            Pos = ans.pos;
+            m.pos = ans.pos;
         LRStack = LRStack.next;
-        m.pos = Pos;
         if (lr.head) {
             lr.seed = ans;
             return LRAnswer(R, P, m);
@@ -114,19 +108,16 @@ function LRAnswer(R, P, M) {
 function GrowLR(R, P, M, H) {
     Heads[P] = H;
     while (true) {
-        Pos = P;
         H.evalSet = inherit(H.involvedSet);
-        var ans = R(new state(input, Pos));
+        var ans = R(new state(input, P));
         if (ans === fail)
             break;
-        Pos = ans.pos;
-        if (Pos <= M.pos)
+        if (ans.pos <= M.pos)
             break;
         M.ans = ans;
-        M.pos = Pos;
+        M.pos = ans.pos;
     }
     delete Heads[P];
-    Pos = M.pos;
     return M.ans;
 }
 
@@ -163,7 +154,7 @@ function expr(s) {
 
 function parse(str) {
     input = str;
-    return ApplyRule(expr, Pos = 0);
+    return ApplyRule(expr, 0);
 }
 
 console.log(parse("1-2-3"));
