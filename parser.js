@@ -133,14 +133,14 @@ function GrowLR(R, P, M, H) {
 function digit(s) {
     var ch = s.at(0);
     if (/[0-9]/.test(ch))
-        return new state(input, Pos + 1);
+        return s.shift(1);
     return fail;
 }
 
 function dash(s) {
     var ch = s.at(0);
     if (ch == '-')
-        return new state(input, Pos + 1);
+        return s.shift(1);
     return fail;
 }
 
@@ -163,8 +163,7 @@ function expr(s) {
 
 function parse(str) {
     input = str;
-    Pos = 0;
-    return ApplyRule(expr, Pos);
+    return ApplyRule(expr, Pos = 0);
 }
 
 console.log(parse("1-2-3"));
