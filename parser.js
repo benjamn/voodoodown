@@ -10,7 +10,7 @@ function state(input, pos) {
 
 function inherit(obj) {
     function ctor() {}
-    ctor.prototype = obj;
+    if (obj) (ctor.prototype = obj).constructor = ctor;
     return new ctor;
 }
 
@@ -30,7 +30,7 @@ var fail = { toString: function() { return "fail" } };
 
 var Heads = {};
 
-var LRStack = new LR;
+var LRStack = null;
 
 function Recall(R, s) {
     var cache = R.memo,
@@ -71,7 +71,7 @@ function ApplyRule(R, s) {
 }
 
 function SetupLR(R, lr) {
-    lr.head = lr.head || new Head(R);
+    lr.head || (lr.head = new Head(R));
     for (var s = LRStack; s != lr; s = s.next) {
         s.head = lr.head;
         lr.head.involvedSet[s.rule.id] = s.rule;
@@ -84,7 +84,7 @@ function LRAnswer(R, s, lr) {
         return lr.seed;
     else {
         R.memo[s] = lr.seed;
-        if (lr.seed === fail)
+        if (lr.seed == fail)
             return fail;
         GrowLR(R, s, h);
         return R.memo[s];
@@ -96,7 +96,7 @@ function GrowLR(R, s, H) {
     while (true) {
         H.evalSet = inherit(H.involvedSet);
         var ans = R.call(s);
-        if (ans === fail ||
+        if (ans == fail ||
             ans._pos <= R.memo[s]._pos)
             break;
         R.memo[s] = ans;
