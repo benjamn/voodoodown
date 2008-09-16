@@ -15,10 +15,6 @@ function inherit(obj, properties) {
     return new ctor;
 }
 
-function MemoEntry(ans) {
-    this.ans = ans;
-}
-
 function LR(seed, rule, head, next) {
     this.seed = seed;
     this.rule = rule;
@@ -41,15 +37,11 @@ var Heads = {};
 var LRStack = null;
 
 function store(R, s, ans) {
-    if (s in R.memo)
-        R.memo[s].ans = ans;
-    else
-        R.memo[s] = new MemoEntry(ans);
+    R.memo[s] = ans;
 }
 
 function fetch(R, s) {
-    if (s in R.memo)
-        return R.memo[s].ans;
+    return R.memo[s];
 }
 
 function Recall(R, s) {
