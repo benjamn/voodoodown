@@ -1,9 +1,19 @@
 
+String.prototype.id = (function() {
+    var ids = {}, next = 1;
+    return function() {
+        var id = ids[this];
+        return id ? id : (ids[this] = next++);
+    };
+})();
+
 function state(input, pos) {
     pos = pos || 0;
-    this.toString = function() input.slice(pos);
-    this.at = function(i) input[pos + i];
-    this.shift = function(by) new state(input, pos + by);
+    var tos = pos + "." + input.id();
+    this._pos = pos;
+    this.toString = function() {return tos};
+    this.at = function(i) {return input[pos + i]};
+    this.shift = function(by) {return new state(input, pos + by)};
 }
 
 function inherit(obj, properties) {
@@ -27,14 +37,18 @@ function Head(rule) {
     this.evalSet = inherit(this.involvedSet);
 }
 
-const fail = { toString: function() "fail" };
+var fail = { toString: function() {return "fail"} };
 
 var Heads = {};
 
 var LRStack = null;
 
+// function Eval(R, s)
+//     R.apply(s, R.args || [])
+
 function Recall(R, s) {
-    var m = R.memo[s],
+    var cache = R.memo,
+        m = cache[s],
         h = Heads[s];
     if (!h) {
         return m;
@@ -42,11 +56,11 @@ function Recall(R, s) {
     if (!m && h.involvedSet[R] != R) {
         return fail;
     }
-    if (h.evalSet[R] === R) {
+    if (h.evalSet[R] == R) {
         h.evalSet[R] = null;
-        R.memo[s] = R.call(s);
+        cache[s] = R.call(s);// Eval(R, s);
     }
-    return R.memo[s];
+    return cache[s];
 }
 
 function ApplyRule(R, s) {
@@ -59,7 +73,7 @@ function ApplyRule(R, s) {
     } else {
         var lr = new LR(fail, R, LRStack);
         R.memo[s] = LRStack = lr;
-        var ans = R.call(s);
+        var ans = R.call(s);//Eval(R, s);
         LRStack = LRStack.next;
         if (lr.head) {
             lr.seed = ans;
@@ -72,7 +86,7 @@ function ApplyRule(R, s) {
 
 function SetupLR(R, lr) {
     lr.head = lr.head || new Head(R);
-    for (var s = LRStack; s.head != lr.head; s = s.next) {
+    for (var s = LRStack; s != lr; s = s.next) {
         s.head = lr.head;
         lr.head.involvedSet[s.rule] = s.rule;
     }
@@ -95,10 +109,9 @@ function GrowLR(R, s, H) {
     Heads[s] = H;
     while (true) {
         H.evalSet = inherit(H.involvedSet);
-        var ans = R.call(s);
-        if (ans === fail)
-            break;
-        if ((ans+"").length >= (R.memo[s]+"").length)
+        var ans = R.call(s);//Eval(R, s);
+        if (ans === fail ||
+            ans._pos <= R.memo[s]._pos)
             break;
         R.memo[s] = ans;
     }
@@ -110,7 +123,7 @@ function memo(rule) {
     rule.parser = function(s) {
         return ApplyRule(rule, s);
     }
-    rule.parser.toString = function() rule + "";
+    rule.parser.toString = function() {return rule + ""};
     return rule.parser;
 }
 
@@ -130,10 +143,10 @@ var dash = memo(function() {
 
 var seq = memo(function() {
     var e = expr(this);
-    if (e === fail)
+    if (e == fail)
         return e;
     var d = dash(e);
-    if (d === fail)
+    if (d == fail)
         return d;
     return digit(d);
 });
@@ -149,6 +162,13 @@ function parse(str) {
     return expr(new state(str));
 }
 
+if (!('console' in this))
+    window.console = {
+        log: function() {
+            return print.apply(this, arguments);
+        }
+    };
+
 var start = new Date().getTime();
-console.log(parse("1-2-3-4-5-6-7"));
+console.log(parse("1-2-3-4-5-6-7-8-9-0-1-2-3-4-5-6-7-8-9-0-1-2-3-4-5-6-7-8-9-0-1-2-3-4-5-6-7-8-9-0-1-2-3-4-5-6-7-8-9-0-1-2-3-4-5-6-7-8-9-0-1-2-3-4-5-6-7-8-9-0-1-2-3-4-5-6-7-8-9-0-1-2-3-4-5-6-7-8-9-0-1-2-3-4-5-6-7-8-9-0-1-2-3-4-5-6-7-8-9-0-1-2-3-4-5-6-7-8-9-0"));
 console.log(new Date().getTime() - start, "ms");
