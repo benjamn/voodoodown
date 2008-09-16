@@ -1,26 +1,15 @@
 
-String.prototype.id = (function() {
-    var ids = {}, next = 1;
-    return function() {
-        var id = ids[this];
-        return id ? id : (ids[this] = next++);
-    };
-})();
-
 function state(input, pos) {
     pos = pos || 0;
-    var tos = pos + "." + input.id();
     this._pos = pos;
-    this.toString = function() {return tos};
-    this.at = function(i) {return input[pos + i]};
-    this.shift = function(by) {return new state(input, pos + by)};
+    var tos = pos + "." + state.input_id;
+    this.toString = function() { return tos };
+    this.at = function(i) { return input[pos + i] };
+    this.shift = function(by) { return new state(input, pos + by) };
 }
 
-function inherit(obj, properties) {
-    var ctor = function() {
-        for (var k in properties)
-            this[k] = properties[k];
-    };
+function inherit(obj) {
+    function ctor() {}
     ctor.prototype = obj;
     return new ctor;
 }
@@ -37,14 +26,11 @@ function Head(rule) {
     this.evalSet = inherit(this.involvedSet);
 }
 
-var fail = { toString: function() {return "fail"} };
+var fail = { toString: function() { return "fail" } };
 
 var Heads = {};
 
-var LRStack = null;
-
-// function Eval(R, s)
-//     R.apply(s, R.args || [])
+var LRStack = new LR;
 
 function Recall(R, s) {
     var cache = R.memo,
@@ -53,12 +39,12 @@ function Recall(R, s) {
     if (!h) {
         return m;
     }
-    if (!m && h.involvedSet[R] != R) {
+    if (!m && h.involvedSet[R.id] != R) {
         return fail;
     }
-    if (h.evalSet[R] == R) {
-        h.evalSet[R] = null;
-        cache[s] = R.call(s);// Eval(R, s);
+    if (h.evalSet[R.id] == R) {
+        h.evalSet[R.id] = null;
+        cache[s] = R.call(s);
     }
     return cache[s];
 }
@@ -73,7 +59,7 @@ function ApplyRule(R, s) {
     } else {
         var lr = new LR(fail, R, LRStack);
         R.memo[s] = LRStack = lr;
-        var ans = R.call(s);//Eval(R, s);
+        var ans = R.call(s);
         LRStack = LRStack.next;
         if (lr.head) {
             lr.seed = ans;
@@ -88,7 +74,7 @@ function SetupLR(R, lr) {
     lr.head = lr.head || new Head(R);
     for (var s = LRStack; s != lr; s = s.next) {
         s.head = lr.head;
-        lr.head.involvedSet[s.rule] = s.rule;
+        lr.head.involvedSet[s.rule.id] = s.rule;
     }
 }
 
@@ -109,7 +95,7 @@ function GrowLR(R, s, H) {
     Heads[s] = H;
     while (true) {
         H.evalSet = inherit(H.involvedSet);
-        var ans = R.call(s);//Eval(R, s);
+        var ans = R.call(s);
         if (ans === fail ||
             ans._pos <= R.memo[s]._pos)
             break;
@@ -118,13 +104,13 @@ function GrowLR(R, s, H) {
     delete Heads[s];
 }
 
+var next_rule_id = 0;
 function memo(rule) {
+    rule.id = next_rule_id++;
     rule.memo = rule.memo || {};
-    rule.parser = function(s) {
+    return function(s) {
         return ApplyRule(rule, s);
     }
-    rule.parser.toString = function() {return rule + ""};
-    return rule.parser;
 }
 
 var digit = memo(function() {
@@ -158,17 +144,29 @@ var expr = memo(function() {
     return digit(this);
 });
 
+String.prototype.id = (function() {
+    var ids = {}, next = 1;
+    return function() {
+        return ids[this] || (ids[this] = next++);
+    };
+})();
+
 function parse(str) {
+    state.input_id = str.id();
     return expr(new state(str));
 }
 
 if (!('console' in this))
-    window.console = {
+    this.console = {
         log: function() {
             return print.apply(this, arguments);
         }
     };
 
+var s = "0-2-4-6-8";
+for (var i = 0; i < 5; i++)
+    s = [s,s,s,s].join("-");
+console.log(s.length);
 var start = new Date().getTime();
-console.log(parse("1-2-3-4-5-6-7-8-9-0-1-2-3-4-5-6-7-8-9-0-1-2-3-4-5-6-7-8-9-0-1-2-3-4-5-6-7-8-9-0-1-2-3-4-5-6-7-8-9-0-1-2-3-4-5-6-7-8-9-0-1-2-3-4-5-6-7-8-9-0-1-2-3-4-5-6-7-8-9-0-1-2-3-4-5-6-7-8-9-0-1-2-3-4-5-6-7-8-9-0-1-2-3-4-5-6-7-8-9-0-1-2-3-4-5-6-7-8-9-0"));
+console.log(parse(s));
 console.log(new Date().getTime() - start, "ms");
