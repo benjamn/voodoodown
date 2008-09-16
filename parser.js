@@ -15,10 +15,9 @@ function inherit(obj, properties) {
     return new ctor;
 }
 
-function LR(seed, rule, head, next) {
+function LR(seed, rule, next) {
     this.seed = seed;
     this.rule = rule;
-    this.head = head;
     this.next = next;
 }
 
@@ -58,7 +57,7 @@ function ApplyRule(R, s) {
             return m.seed;
         } else return m;
     } else {
-        var lr = new LR(fail, R, null, LRStack);
+        var lr = new LR(fail, R, LRStack);
         R.memo[s] = LRStack = lr;
         var ans = R.call(s);
         LRStack = LRStack.next;
@@ -71,11 +70,11 @@ function ApplyRule(R, s) {
     }
 }
 
-function SetupLR(R, L) {
-    L.head = L.head || new Head(R);
-    for (var s = LRStack; s.head != L.head; s = s.next) {
-        s.head = L.head;
-        L.head.involvedSet[s.rule] = s.rule;
+function SetupLR(R, lr) {
+    lr.head = lr.head || new Head(R);
+    for (var s = LRStack; s.head != lr.head; s = s.next) {
+        s.head = lr.head;
+        lr.head.involvedSet[s.rule] = s.rule;
     }
 }
 
