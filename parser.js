@@ -28,24 +28,14 @@ function Head(rule) {
     this.evalSet = inherit(this.involvedSet);
 }
 
-var input;
-
 const fail = { toString: function() "fail" };
 
 var Heads = {};
 
 var LRStack = null;
 
-function store(R, s, ans) {
-    R.memo[s] = ans;
-}
-
-function fetch(R, s) {
-    return R.memo[s];
-}
-
 function Recall(R, s) {
-    var m = fetch(R, s),
+    var m = R.memo[s],
         h = Heads[s];
     if (!h) {
         return m;
@@ -55,9 +45,9 @@ function Recall(R, s) {
     }
     if (h.evalSet[R] === R) {
         h.evalSet[R] = null;
-        store(R, s, R.call(s));
+        R.memo[s] = R.call(s);
     }
-    return fetch(R, s);
+    return R.memo[s];
 }
 
 function ApplyRule(R, s) {
@@ -69,16 +59,14 @@ function ApplyRule(R, s) {
         } else return m;
     } else {
         var lr = new LR(fail, R, null, LRStack);
-        LRStack = lr;
-        store(R, s, lr);
+        R.memo[s] = LRStack = lr;
         var ans = R.call(s);
         LRStack = LRStack.next;
         if (lr.head) {
             lr.seed = ans;
             return LRAnswer(R, s, lr);
         } else {
-            store(R, s, ans);
-            return ans;
+            return R.memo[s] = ans;
         }
     }
 }
@@ -96,11 +84,11 @@ function LRAnswer(R, s, lr) {
     if (h.rule != R)
         return lr.seed;
     else {
-        store(R, s, lr.seed);
+        R.memo[s] = lr.seed;
         if (lr.seed === fail)
             return fail;
         GrowLR(R, s, h);
-        return fetch(R, s);
+        return R.memo[s];
     }
 }
 
@@ -111,9 +99,9 @@ function GrowLR(R, s, H) {
         var ans = R.call(s);
         if (ans === fail)
             break;
-        if ((ans+"").length >= (fetch(R, s)+"").length)
+        if ((ans+"").length >= (R.memo[s]+"").length)
             break;
-        store(R, s, ans);
+        R.memo[s] = ans;
     }
     delete Heads[s];
 }
