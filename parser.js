@@ -47,29 +47,34 @@ function store(R, s, ans) {
         R.memo[s] = new MemoEntry(ans);
 }
 
+function fetch(R, s) {
+    if (s in R.memo)
+        return R.memo[s].ans;
+}
+
 function Recall(R, s) {
-    var m = R.memo[s],
+    var m = fetch(R, s),
         h = Heads[s];
     if (!h) {
         return m;
     }
     if (!m && h.involvedSet[R] != R) {
-        return new MemoEntry(fail);
+        return fail;
     }
     if (h.evalSet[R] === R) {
         h.evalSet[R] = null;
         store(R, s, R.call(s));
     }
-    return m;
+    return fetch(R, s);
 }
 
 function ApplyRule(R, s) {
     var m = Recall(R, s);
     if (m) {
-        if (m.ans instanceof LR) {
-            SetupLR(R, m.ans);
-            return m.ans.seed;
-        } else return m.ans;
+        if (m instanceof LR) {
+            SetupLR(R, m);
+            return m.seed;
+        } else return m;
     } else {
         var lr = new LR(fail, R, null, LRStack);
         LRStack = lr;
@@ -103,7 +108,7 @@ function LRAnswer(R, s, lr) {
         if (lr.seed === fail)
             return fail;
         GrowLR(R, s, h);
-        return R.memo[s].ans;
+        return fetch(R, s);
     }
 }
 
@@ -114,7 +119,7 @@ function GrowLR(R, s, H) {
         var ans = R.call(s);
         if (ans === fail)
             break;
-        if ((ans+"").length >= (R.memo[s].ans+"").length)
+        if ((ans+"").length >= (fetch(R, s)+"").length)
             break;
         store(R, s, ans);
     }
