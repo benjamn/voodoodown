@@ -1,8 +1,10 @@
 
 function state(input, pos) {
     pos = pos || 0;
+
     this._pos = pos;
     var tos = pos + "." + state.input_id;
+
     this.toString = function() { return tos };
     this.at = function(i) { return input[pos + i] };
     this.shift = function(by) { return new state(input, pos + by) };
@@ -104,9 +106,18 @@ function GrowLR(R, s, H) {
     delete Heads[s];
 }
 
-var next_rule_id = 0;
+function idMethod() {
+    var ids = {}, next = 1;
+    return function() {
+        return ids[this] || (ids[this] = next++);
+    };
+}
+
+Function.prototype.id = idMethod();
+String.prototype.id = idMethod();
+
 function memo(rule) {
-    rule.id = next_rule_id++;
+    rule.id = rule.id();
     rule.memo = rule.memo || {};
     return function(s) {
         return ApplyRule(rule, s);
@@ -143,13 +154,6 @@ var expr = memo(function() {
         return e;
     return digit(this);
 });
-
-String.prototype.id = (function() {
-    var ids = {}, next = 1;
-    return function() {
-        return ids[this] || (ids[this] = next++);
-    };
-})();
 
 function parse(str) {
     state.input_id = str.id();
