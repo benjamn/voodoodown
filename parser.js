@@ -10,9 +10,12 @@ function state(input, pos) {
     this.shift = function(by) { return new state(input, pos + by) };
 }
 
-function inherit(obj) {
+// Quick way to distinguish states from the fail singleton:
+state.prototype.ok = true;
+
+function inherit(proto) {
     function ctor() {}
-    if (obj) (ctor.prototype = obj).constructor = ctor;
+    proto && (ctor.prototype = proto);
     return new ctor;
 }
 
@@ -28,83 +31,9 @@ function Head(rule) {
     this.evalSet = inherit(this.involvedSet);
 }
 
-var fail = { toString: function() { return "fail" } };
-
-var Heads = {};
-
-var LRStack = null;
-
-function Recall(R, s) {
-    var cache = R.memo,
-        m = cache[s],
-        h = Heads[s];
-    if (!h) {
-        return m;
-    }
-    if (!m && h.involvedSet[R.id] != R) {
-        return fail;
-    }
-    if (h.evalSet[R.id] == R) {
-        h.evalSet[R.id] = null;
-        cache[s] = R.call(s);
-    }
-    return cache[s];
-}
-
-function ApplyRule(R, s) {
-    var m = Recall(R, s);
-    if (m) {
-        if (m instanceof LR) {
-            SetupLR(R, m);
-            return m.seed;
-        } else return m;
-    } else {
-        var lr = new LR(fail, R, LRStack);
-        R.memo[s] = LRStack = lr;
-        var ans = R.call(s);
-        LRStack = LRStack.next;
-        if (lr.head) {
-            lr.seed = ans;
-            return LRAnswer(R, s, lr);
-        } else {
-            return R.memo[s] = ans;
-        }
-    }
-}
-
-function SetupLR(R, lr) {
-    lr.head || (lr.head = new Head(R));
-    for (var s = LRStack; s != lr; s = s.next) {
-        s.head = lr.head;
-        lr.head.involvedSet[s.rule.id] = s.rule;
-    }
-}
-
-function LRAnswer(R, s, lr) {
-    var h = lr.head;
-    if (h.rule != R)
-        return lr.seed;
-    else {
-        R.memo[s] = lr.seed;
-        if (lr.seed == fail)
-            return fail;
-        GrowLR(R, s, h);
-        return R.memo[s];
-    }
-}
-
-function GrowLR(R, s, H) {
-    Heads[s] = H;
-    while (true) {
-        H.evalSet = inherit(H.involvedSet);
-        var ans = R.call(s);
-        if (ans == fail ||
-            ans._pos <= R.memo[s]._pos)
-            break;
-        R.memo[s] = ans;
-    }
-    delete Heads[s];
-}
+var fail = { toString: function() { return "fail" } },
+    Heads = {},
+    LRStack = null;
 
 function idMethod() {
     var ids = {}, next = 1;
@@ -116,48 +45,153 @@ function idMethod() {
 Function.prototype.id = idMethod();
 String.prototype.id = idMethod();
 
-function memo(rule) {
-    rule.id = rule.id();
-    rule.memo = rule.memo || {};
-    return function(s) {
-        return ApplyRule(rule, s);
-    }
+function combinator(c) {
+    c.id = c.id();
+    return function() {
+        var memo = {},
+            // TODO convert all arguments to parsers?
+            combinator_args = arguments;
+
+        function Recall(s) {
+            var m = memo[s],
+                h = Heads[s];
+            if (!h)
+                return m;
+            if (!m && h.involvedSet[c.id] != c)
+                return fail;
+            if (h.evalSet[c.id] == c) {
+                h.evalSet[c.id] = null;
+                memo[s] = c.apply(s, combinator_args);
+            }
+            return memo[s];
+        }
+
+        function LRAnswer(s, lr) {
+            var h = lr.head;
+            if (h.rule != c)
+                return lr.seed;
+            else {
+                memo[s] = lr.seed;
+                if (lr.seed == fail)
+                    return fail;
+                GrowLR(s, h);
+                return memo[s];
+            }
+        }
+
+        function GrowLR(s, H) {
+            Heads[s] = H;
+            while (true) {
+                H.evalSet = inherit(H.involvedSet);
+                var ans = c.apply(s, combinator_args);
+                if (ans == fail ||
+                    ans._pos <= memo[s]._pos)
+                    break;
+                memo[s] = ans;
+            }
+            delete Heads[s];
+        }
+
+        function SetupLR(lr) {
+            var head = lr.head || (lr.head = new Head(c));
+            for (var s = LRStack; s != lr; s = s.next) {
+                s.head = head;
+                head.involvedSet[s.rule.id] = s.rule;
+            }
+        }
+
+        return function(s) {
+            var m = Recall(s);
+            if (m) {
+                if (m instanceof LR) {
+                    SetupLR(m);
+                    return m.seed;
+                } else return m;
+            } else {
+                var lr = new LR(fail, c, LRStack);
+                memo[s] = LRStack = lr;
+                var ans = c.apply(s, combinator_args);
+                LRStack = LRStack.next;
+                if (lr.head) {
+                    lr.seed = ans;
+                    return LRAnswer(s, lr);
+                } else {
+                    return memo[s] = ans;
+                }
+            }
+        };
+    };
 }
 
-var digit = memo(function() {
-    var ch = this.at(0);
-    if (/[0-9]/.test(ch))
-        return this.shift(1);
-    return fail;
-});
+var combinators = {
+    tok: combinator(function(t) {
+        var len = t.length;
+        for (var i = 0; i < len; i++)
+            if (this.at(i) != t[i])
+                return fail;
+        return this.shift(len);
+    }),
+    cls: combinator(function(c) {
+        var ch = this.at(0) || "";
+        return new RegExp("[" + c + "]").test(ch)
+            && this.shift(1);
+    }),
+    and: combinator(function(p) { return  p(this).ok && this }),
+    opt: combinator(function(p) { return  p(this).ok || this }),
+    not: combinator(function(p) { return !p(this).ok && this }),
+    seq: combinator(function() {
+        var p, state = this, i = 0;
+        while (state.ok && (p = arguments[i++]))
+            state = p(state);
+        return state;
+    }),
+    choice: combinator(function() {
+        var p, state = fail, i = 0;
+        while ((p = arguments[i++]))
+            if ((state = p(this)).ok)
+                break;
+        return state;
+    }),
+    rep0: combinator(function(p) {
+        var next, state = this;
+        while (state.ok && (next = p(state)).ok)
+            state = next;
+        return state;
+    }),
+    rep1: combinator(function(p) {
+        var state = p(this);
+        return state.ok && combinators.rep0(p)(state);
+    })
+};
 
-var dash = memo(function() {
-    var ch = this.at(0);
-    if (ch == '-')
-        return this.shift(1);
-    return fail;
-});
+var core = {
+    parse: function(s) {
+        state.input_id = s.id();
+        return this.entry_point(new state(s));
+    },
+    lazy: function(name) {
+        var obj = this;
+        return function() {
+            return obj[name].apply(this, arguments);
+        }
+    }
+};
 
-var seq = memo(function() {
-    var e = expr(this);
-    if (e == fail)
-        return e;
-    var d = dash(e);
-    if (d == fail)
-        return d;
-    return digit(d);
-});
+with (combinators) {
+    var c = inherit(core);
+    c.initial = cls("a-zA-Z_$");
+    c.digit = cls("0-9");
+    c.ident = seq(c.initial, rep0(choice(c.digit, c.initial)));
+    c.$ = rep0(cls("\\s"));
 
-var expr = memo(function() {
-    var e = seq(this);
-    if (e != fail)
-        return e;
-    return digit(this);
-});
+    var peg = inherit(c);
+    peg.production  = seq(peg.ident, peg.$, tok(':='), peg.$, choice(tok('u'), tok('v')), peg.$);
+    peg.grammar     = rep1(peg.production);
+    peg.entry_point = peg.grammar;
 
-function parse(str) {
-    state.input_id = str.id();
-    return expr(new state(str));
+    var lr = inherit(c);
+    lr.expr = choice(seq(lr.lazy('expr'), tok('-'), lr.digit), lr.digit);
+    lr.entry_point = lr.expr;
 }
 
 if (!('console' in this))
@@ -172,5 +206,5 @@ for (var i = 0; i < 5; i++)
     s = [s,s,s,s].join("-");
 console.log(s.length);
 var start = new Date().getTime();
-console.log(parse(s));
-console.log(new Date().getTime() - start, "ms");
+console.log(lr.parse(s));
+console.log((new Date().getTime() - start) + "ms");
