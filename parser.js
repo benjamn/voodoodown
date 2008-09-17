@@ -133,8 +133,9 @@ var combinators = {
     }),
     cls: combinator(function(c) {
         var ch = this.at(0) || "";
-        return new RegExp("[" + c + "]").test(ch)
-            && this.shift(1);
+        if (new RegExp("[" + c + "]").test(ch))
+            return this.shift(1);
+        return fail;
     }),
     and: combinator(function(p) { return  p(this).ok && this }),
     opt: combinator(function(p) { return  p(this).ok || this }),
@@ -160,7 +161,9 @@ var combinators = {
     }),
     rep1: combinator(function(p) {
         var state = p(this);
-        return state.ok && combinators.rep0(p)(state);
+        if (state.ok)
+            return combinators.rep0(p)(state);
+        return fail;
     })
 };
 
