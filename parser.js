@@ -19,14 +19,14 @@ function inherit(proto) {
     return new ctor;
 }
 
-function LR(seed, rule, next) {
+function LR(seed, rule_id, next) {
     this.seed = seed;
-    this.rule = rule;
+    this.rule_id = rule_id;
     this.next = next;
 }
 
-function Head(rule) {
-    this.rule = rule;
+function Head(rule_id) {
+    this.rule_id = rule_id;
     this.involvedSet = {};
     this.evalSet = inherit(this.involvedSet);
 }
@@ -35,46 +35,55 @@ var fail = { toString: function() { return "fail" } },
     Heads = {},
     LRStack = null;
 
-function idMethod() {
-    var ids = {}, next = 1;
+function counter(next) { return function() { return next++ } }
+
+String.prototype.id = (function(idgen) {
+    var ids = {};
     return function() {
-        return ids[this] || (ids[this] = next++);
+        return ids[this] || (ids[this] = idgen());
     };
-}
+})(counter(1));
 
-Function.prototype.id = idMethod();
-String.prototype.id = idMethod();
-
-function combinator(c) {
-    c.id = c.id();
+function combinator(c, skip_conversion) {
     return function() {
-        var memo = {},
-            // TODO convert all arguments to parsers?
-            combinator_args = arguments;
+        var rule_id = combinators.idgen(),
+            memo = {},
+            c_args = arguments;
+            
+        if (!skip_conversion) {
+            for (var i = 0; i < c_args.length; ++i) {
+                switch (typeof c_args[i]) {
+                case "function": break;
+                default: case "string":
+                    c_args[i] = combinators.tok(c_args[i]);
+                }
+            }
+        }
 
         function Recall(s) {
             var m = memo[s],
                 h = Heads[s];
             if (!h)
                 return m;
-            if (!m && h.involvedSet[c.id] != c)
+            if (!m && h.involvedSet[rule_id])
                 return fail;
-            if (h.evalSet[c.id] == c) {
-                h.evalSet[c.id] = null;
-                memo[s] = c.apply(s, combinator_args);
+            if (h.evalSet[rule_id]) {
+                h.evalSet[rule_id] = false;
+                memo[s] = c.apply(s, c_args);
             }
             return memo[s];
         }
 
         function LRAnswer(s, lr) {
-            var h = lr.head;
-            if (h.rule != c)
-                return lr.seed;
+            var seed = lr.seed,
+                head = lr.head;
+            if (head.rule_id != rule_id)
+                return seed;
             else {
-                memo[s] = lr.seed;
-                if (lr.seed == fail)
-                    return fail;
-                GrowLR(s, h);
+                memo[s] = seed;
+                if (!seed.ok)
+                    return seed;
+                GrowLR(s, head);
                 return memo[s];
             }
         }
@@ -83,9 +92,8 @@ function combinator(c) {
             Heads[s] = H;
             while (true) {
                 H.evalSet = inherit(H.involvedSet);
-                var ans = c.apply(s, combinator_args);
-                if (ans == fail ||
-                    ans._pos <= memo[s]._pos)
+                var ans = c.apply(s, c_args);
+                if (!ans.ok || ans._pos <= memo[s]._pos)
                     break;
                 memo[s] = ans;
             }
@@ -93,10 +101,10 @@ function combinator(c) {
         }
 
         function SetupLR(lr) {
-            var head = lr.head || (lr.head = new Head(c));
+            var head = lr.head || (lr.head = new Head(rule_id));
             for (var s = LRStack; s != lr; s = s.next) {
                 s.head = head;
-                head.involvedSet[s.rule.id] = s.rule;
+                head.involvedSet[s.rule_id] = true;
             }
         }
 
@@ -108,9 +116,9 @@ function combinator(c) {
                     return m.seed;
                 } else return m;
             } else {
-                var lr = new LR(fail, c, LRStack);
+                var lr = new LR(fail, rule_id, LRStack);
                 memo[s] = LRStack = lr;
-                var ans = c.apply(s, combinator_args);
+                var ans = c.apply(s, c_args);
                 LRStack = LRStack.next;
                 if (lr.head) {
                     lr.seed = ans;
@@ -130,13 +138,13 @@ var combinators = {
             if (this.at(i) != t[i])
                 return fail;
         return this.shift(len);
-    }),
+    }, true),
     cls: combinator(function(c) {
         var ch = this.at(0) || "";
         if (new RegExp("[" + c + "]").test(ch))
             return this.shift(1);
         return fail;
-    }),
+    }, true),
     and: combinator(function(p) { return  p(this).ok && this }),
     opt: combinator(function(p) { return  p(this).ok || this }),
     not: combinator(function(p) { return !p(this).ok && this }),
@@ -164,7 +172,9 @@ var combinators = {
         if (state.ok)
             return combinators.rep0(p)(state);
         return fail;
-    })
+    }),
+    
+    idgen: counter(0)
 };
 
 var core = {
@@ -188,16 +198,16 @@ with (combinators) {
     c.$ = rep0(cls("\\s"));
 
     var peg = inherit(c);
-    peg.production  = seq(peg.ident, peg.$, tok(':='), peg.$, choice(tok('u'), tok('v')), peg.$);
+    peg.production  = seq(peg.ident, peg.$, ":=", peg.$, choice("u", "v"), peg.$);
     peg.grammar     = rep1(peg.production);
     peg.entry_point = peg.grammar;
 
     var lr = inherit(c);
-    lr.expr = choice(seq(lr.lazy('expr'), tok('-'), lr.digit), lr.digit);
+    lr.expr = choice(seq(lr.lazy("expr"), "-", lr.digit), lr.digit);
     lr.entry_point = lr.expr;
 }
 
-if (!('console' in this))
+if (!("console" in this))
     this.console = {
         log: function() {
             return print.apply(this, arguments);
