@@ -1,9 +1,8 @@
 
 function state(input, pos) {
     pos = pos || 0;
-
     this._pos = pos;
-    var tos = pos + "." + state.input_id;
+    var tos = pos + "." + this.input_id;
 
     this.toString = function() { return tos };
     this.at = function(i) { return input[pos + i] };
@@ -79,13 +78,10 @@ function combinator(c, skip_conversion) {
                 head = lr.head;
             if (head.rule_id != rule_id)
                 return seed;
-            else {
-                memo[s] = seed;
-                if (!seed.ok)
-                    return seed;
-                GrowLR(s, head);
-                return memo[s];
-            }
+            if (!(memo[s] = seed).ok)
+                return fail;
+            GrowLR(s, head);
+            return memo[s];
         }
 
         function GrowLR(s, H) {
@@ -110,23 +106,19 @@ function combinator(c, skip_conversion) {
 
         return function(s) {
             var m = Recall(s);
-            if (m) {
-                if (m instanceof LR) {
-                    SetupLR(m);
-                    return m.seed;
-                } else return m;
-            } else {
-                var lr = new LR(fail, rule_id, LRStack);
-                memo[s] = LRStack = lr;
-                var ans = c.apply(s, c_args);
-                LRStack = LRStack.next;
-                if (lr.head) {
-                    lr.seed = ans;
-                    return LRAnswer(s, lr);
-                } else {
-                    return memo[s] = ans;
-                }
-            }
+            if (m instanceof LR) {
+                SetupLR(m);
+                return m.seed;
+            } else if (m)
+                return m;
+            var lr = new LR(fail, rule_id, LRStack);
+            memo[s] = LRStack = lr;
+            var ans = c.apply(s, c_args);
+            LRStack = LRStack.next;
+            if (!lr.head)
+                return memo[s] = ans;
+            lr.seed = ans;
+            return LRAnswer(s, lr);
         };
     };
 }
@@ -145,9 +137,12 @@ var combinators = {
             return this.shift(1);
         return fail;
     }, true),
-    and: combinator(function(p) { return  p(this).ok && this }),
-    opt: combinator(function(p) { return  p(this).ok || this }),
-    not: combinator(function(p) { return !p(this).ok && this }),
+    and: combinator(function(p) { return  p(this).ok ? this : fail }),
+    not: combinator(function(p) { return !p(this).ok ? this : fail }),
+    opt: combinator(function(p) {
+        var state = p(this);
+        return state.ok ? state : this;
+    }),
     seq: combinator(function() {
         var p, state = this, i = 0;
         while (state.ok && (p = arguments[i++]))
@@ -168,10 +163,10 @@ var combinators = {
         return state;
     }),
     rep1: combinator(function(p) {
-        var state = p(this);
-        if (state.ok)
-            return combinators.rep0(p)(state);
-        return fail;
+        var next, state = p(this);
+        while (state.ok && (next = p(state)).ok)
+            state = next;
+        return state;
     }),
     
     idgen: counter(0)
@@ -179,7 +174,7 @@ var combinators = {
 
 var core = {
     parse: function(s) {
-        state.input_id = s.id();
+        state.prototype.input_id = s.id();
         return this.entry_point(new state(s));
     },
     lazy: function(name) {
