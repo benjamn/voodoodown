@@ -152,8 +152,8 @@ var combinators = {
             return this.copy(1, ch);
         return fail;
     }, true),
-    and: combinator(function(p) { return  p(this).ok ? this : fail }),
-    not: combinator(function(p) { return !p(this).ok ? this : fail }),
+    and: combinator(function(p) { return p(this).ok ? this : fail }),
+    not: combinator(function(p) { return p(this).ok ? fail : this }),
     opt: combinator(function(p) {
         var state = p(this);
         return state.ok ? state : this;
