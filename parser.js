@@ -1,12 +1,14 @@
 
-function state(input, pos) {
-    pos = pos || 0;
-    this._pos = pos;
+function state(input, pos, ast) {
+    this.pos = pos = pos || 0;
+    this.ast = ast = ast || false
     var tos = pos + "." + this.input_id;
 
     this.toString = function() { return tos };
     this.at = function(i) { return input[pos + i] };
-    this.shift = function(by) { return new state(input, pos + by) };
+    this.copy = function(gain, ast) {
+        return new state(input, pos + (gain || 0), ast);
+    };
 }
 
 // Quick way to distinguish states from the fail singleton:
@@ -30,7 +32,10 @@ function Head(rule_id) {
     this.evalSet = inherit(this.involvedSet);
 }
 
-var fail = { toString: function() { return "fail" } },
+var fail = {
+    toString: function() { return "fail" },
+    copy: Object.prototype.valueOf
+},
     Heads = {},
     LRStack = null;
 
@@ -43,20 +48,28 @@ String.prototype.id = (function(idgen) {
     };
 })(counter(1));
 
-function combinator(c, skip_conversion) {
+function combinator(c, no_conversion) {
     return function() {
         var rule_id = combinators.idgen(),
             memo = {},
             c_args = arguments;
             
-        if (!skip_conversion) {
+        if (!no_conversion) {
             for (var i = 0; i < c_args.length; ++i) {
                 switch (typeof c_args[i]) {
+                case "undefined": throw [c_args, i];
                 case "function": break;
                 default: case "string":
                     c_args[i] = combinators.tok(c_args[i]);
                 }
             }
+        }
+
+        function Eval(s) {
+            var ans = c.apply(s, c_args);
+            if (ans === s)
+                ans = ans.copy();
+            return ans;
         }
 
         function Recall(s) {
@@ -67,8 +80,8 @@ function combinator(c, skip_conversion) {
             if (!m && h.involvedSet[rule_id])
                 return fail;
             if (h.evalSet[rule_id]) {
-                h.evalSet[rule_id] = false;
-                memo[s] = c.apply(s, c_args);
+                h.evalSet[rule_id] = false;                
+                memo[s] = Eval(s);
             }
             return memo[s];
         }
@@ -88,8 +101,8 @@ function combinator(c, skip_conversion) {
             Heads[s] = H;
             while (true) {
                 H.evalSet = inherit(H.involvedSet);
-                var ans = c.apply(s, c_args);
-                if (!ans.ok || ans._pos <= memo[s]._pos)
+                var ans = Eval(s);
+                if (!ans.ok || ans.pos <= memo[s].pos)
                     break;
                 memo[s] = ans;
             }
@@ -104,7 +117,7 @@ function combinator(c, skip_conversion) {
             }
         }
 
-        return function(s) {
+        function parse(s) {
             var m = Recall(s);
             if (m instanceof LR) {
                 SetupLR(m);
@@ -113,13 +126,15 @@ function combinator(c, skip_conversion) {
                 return m;
             var lr = new LR(fail, rule_id, LRStack);
             memo[s] = LRStack = lr;
-            var ans = c.apply(s, c_args);
+            var ans = Eval(s);
             LRStack = LRStack.next;
             if (!lr.head)
                 return memo[s] = ans;
             lr.seed = ans;
             return LRAnswer(s, lr);
-        };
+        }
+
+        return parse;
     };
 }
 
@@ -129,12 +144,12 @@ var combinators = {
         for (var i = 0; i < len; i++)
             if (this.at(i) != t[i])
                 return fail;
-        return this.shift(len);
+        return this.copy(len, t);
     }, true),
     cls: combinator(function(c) {
         var ch = this.at(0) || "";
         if (new RegExp("[" + c + "]").test(ch))
-            return this.shift(1);
+            return this.copy(1, ch);
         return fail;
     }, true),
     and: combinator(function(p) { return  p(this).ok ? this : fail }),
@@ -144,9 +159,12 @@ var combinators = {
         return state.ok ? state : this;
     }),
     seq: combinator(function() {
-        var p, state = this, i = 0;
+        var p, state = this, i = 0, ast = [];
         while (state.ok && (p = arguments[i++]))
-            state = p(state);
+            if ((state = p(state)).ok)
+                ast.push(state.ast);
+        if (state.ok)
+            state.ast = ast;
         return state;
     }),
     choice: combinator(function() {
@@ -157,25 +175,65 @@ var combinators = {
         return state;
     }),
     rep0: combinator(function(p) {
-        var next, state = this;
+        var next, state = this, ast = [];
         while (state.ok && (next = p(state)).ok)
-            state = next;
+            if ((state = next).ok)
+                ast.push(state.ast);
+        if (state.ok)
+            state.ast = ast;
         return state;
     }),
     rep1: combinator(function(p) {
-        var next, state = p(this);
+        var next, state = p(this), ast = [state.ast];
         while (state.ok && (next = p(state)).ok)
-            state = next;
+            if ((state = next).ok)
+                ast.push(state.ast);
+        if (state.ok)
+            state.ast = ast;
         return state;
     }),
-    
     idgen: counter(0)
 };
 
+combinators.handle = combinator(function(p, handler) {
+    var state = p(this);
+    if (state.ok)
+        switch (typeof handler) {
+        case "function":
+            state.ast = handler(state.ast);
+            break;
+        case "number":
+            state.ast = state.ast[handler];
+            break;
+        case "string":
+            var ast = state.ast,
+                args = [].slice.call(arguments, 2);
+            state.ast = ast[handler].apply(ast, args);
+            break;
+        }
+    return state;
+}, true);
+
+combinators.any = combinator(function() {
+    return this.copy(1, this.at(0));
+}, true)();
+
+if (!("console" in this))
+    this.console = {
+        log: function() {
+            return print.apply(this, arguments);
+        }
+    };
+
 var core = {
     parse: function(s) {
+        var s, start = +new Date, end;
         state.prototype.input_id = s.id();
-        return this.entry_point(new state(s));
+        s = this.entry_point(new state(s));
+        end = +new Date;
+        console.log(s);
+        console.log((end - start) + "ms");
+        return s.ast;
     },
     lazy: function(name) {
         var obj = this;
@@ -185,34 +243,34 @@ var core = {
     }
 };
 
+var c = inherit(core);
 with (combinators) {
-    var c = inherit(core);
     c.initial = cls("a-zA-Z_$");
     c.digit = cls("0-9");
-    c.ident = seq(c.initial, rep0(choice(c.digit, c.initial)));
-    c.$ = rep0(cls("\\s"));
-
-    var peg = inherit(c);
-    peg.production  = seq(peg.ident, peg.$, ":=", peg.$, choice("u", "v"), peg.$);
-    peg.grammar     = rep1(peg.production);
-    peg.entry_point = peg.grammar;
-
-    var lr = inherit(c);
-    lr.expr = choice(seq(lr.lazy("expr"), "-", lr.digit), lr.digit);
-    lr.entry_point = lr.expr;
+    c.ident = handle(seq(c.initial,
+                         handle(rep0(choice(c.digit, c.initial)),
+                                "join", "")),
+                     "join", "");
+    c.$ = handle(rep0(cls("\\s")), "join", "");
 }
 
-if (!("console" in this))
-    this.console = {
-        log: function() {
-            return print.apply(this, arguments);
-        }
-    };
+function stress_test() {
+    var lr = inherit(c);
+    
+    with (combinators)
+        lr.expr = choice(seq(lr.lazy("expr"), "-", lr.digit), lr.digit);
+    
+    lr.entry_point = lr.expr;
+    
+    var s = "0-2-4-6-8";
+    for (var i = 0; i < 5; i++)
+        s = [s,s,s,s].join("-");
+    
+    lr.parse(s);
+}
 
-var s = "0-2-4-6-8";
-for (var i = 0; i < 5; i++)
-    s = [s,s,s,s].join("-");
-console.log(s.length);
-var start = new Date().getTime();
-console.log(lr.parse(s));
-console.log((new Date().getTime() - start) + "ms");
+function html_test() {
+
+}
+
+stress_test();
