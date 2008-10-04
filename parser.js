@@ -218,13 +218,6 @@ combinators.any = combinator(function() {
     return this.copy(1, this.at(0));
 }, true)();
 
-if (!("console" in this))
-    this.console = {
-        log: function() {
-            return print.apply(this, arguments);
-        }
-    };
-
 var core = {
     parse: function(s) {
         var s, start = +new Date, end;
@@ -269,8 +262,11 @@ function stress_test() {
     lr.parse(s);
 }
 
-function html_test() {
-
+if (!("console" in this)) {
+    this.console = {
+        log: function() {
+            return print.apply(this, arguments);
+        }
+    };
+    stress_test();
 }
-
-stress_test();
