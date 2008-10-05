@@ -1,10 +1,11 @@
 
 function state(input, pos, ast) {
     this.pos = pos = pos || 0;
-    this.ast = ast = ast || false
+    this.ast = ast = ast || false;
+    
     var tos = pos + "." + this.input_id;
-
     this.toString = function() { return tos };
+    
     this.at = function(i) { return input[pos + i] };
     this.copy = function(gain, ast) {
         return new state(input, pos + (gain || 0), ast);
@@ -163,9 +164,7 @@ var combinators = {
         while (state.ok && (p = arguments[i++]))
             if ((state = p(state)).ok)
                 ast.push(state.ast);
-        if (state.ok)
-            state.ast = ast;
-        return state;
+        return state.copy(0, ast);
     }),
     choice: combinator(function() {
         var p, state = fail, i = 0;
@@ -176,21 +175,17 @@ var combinators = {
     }),
     rep0: combinator(function(p) {
         var next, state = this, ast = [];
-        while (state.ok && (next = p(state)).ok)
-            if ((state = next).ok)
-                ast.push(state.ast);
-        if (state.ok)
-            state.ast = ast;
-        return state;
+        while (state.ok)
+            if ((next = p(state)).ok)
+                ast.push((state = next).ast);
+        return state.copy(0, ast);
     }),
     rep1: combinator(function(p) {
         var next, state = p(this), ast = [state.ast];
-        while (state.ok && (next = p(state)).ok)
-            if ((state = next).ok)
-                ast.push(state.ast);
-        if (state.ok)
-            state.ast = ast;
-        return state;
+        while (state.ok)
+            if ((next = p(state)).ok)
+                ast.push((state = next).ast);
+        return state.copy(0, ast);
     }),
     idgen: counter(0)
 };
