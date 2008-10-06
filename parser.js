@@ -233,6 +233,7 @@ var c = inherit(core);
 with (combinators) {
     c.initial = cls("a-zA-Z_$");
     c.digit = cls("0-9");
+    c.integer = rep1(c.digit);
     c.ident = handle(seq(c.initial,
                          handle(rep0(choice(c.digit, c.initial)),
                                 "join", "")),
