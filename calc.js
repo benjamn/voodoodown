@@ -4,22 +4,25 @@ with (combinators) {
     var expr = calc.lazy("expr");
 
     calc.additive = handle(seq(expr, cls("+-"), expr), function(ast) {
+        var a = Number(ast[0]),
+            b = Number(ast[2]);
         switch (ast[1]) {
-        case "+": return Number(ast[0]) + Number(ast[2]);
-        case "-": return Number(ast[0]) - Number(ast[2]);
-        default: return ast;
+        case "+": return a + b;
+        case "-": return a - b;
         }
     });
 
     calc.multiplicative = handle(seq(expr, cls("*/"), expr), function(ast) {
+        var a = Number(ast[0]),
+            a = Number(ast[2]);
         switch (ast[1]) {
-        case "*": return Number(ast[0]) * Number(ast[2]);
-        case "/": return Number(ast[0]) / Number(ast[2]);
-        default: return ast;
+        case "*": return a * b;
+        case "/": return a / b;
         }
     });
 
-    // Ordered choice is convenient!
+    // Note: (1) precedence is enforced by ordered choice
+    //       (2) calc.expr is left-recursive
     calc.expr = choice(calc.multiplicative,
                        calc.additive,
                        calc.integer);
@@ -27,5 +30,6 @@ with (combinators) {
     calc.entry_point = calc.expr;
 }
 
-// calc.parse("1+2*3");
+// Computes 7 without building an AST:
+// calc.parse("1+2*3")
 
