@@ -54,7 +54,7 @@ function combinator(c, no_conversion) {
         var rule_id = combinators.idgen(),
             memo = {},
             c_args = arguments;
-            
+
         if (!no_conversion) {
             for (var i = 0; i < c_args.length; ++i) {
                 switch (typeof c_args[i]) {
@@ -217,7 +217,7 @@ var core = {
         state.prototype.input_id = s.id();
         s = this.entry_point(new state(s));
         end = +new Date;
-        console.log(s);
+        console.log(s.toString());
         console.log((end - start) + "ms");
         return s.ast;
     },
@@ -242,16 +242,16 @@ with (combinators) {
 
 function stress_test() {
     var lr = inherit(c);
-    
+
     with (combinators)
         lr.expr = choice(seq(lr.lazy("expr"), "-", lr.digit), lr.digit);
-    
+
     lr.entry_point = lr.expr;
-    
+
     var s = "0-2-4-6-8";
     for (var i = 0; i < 5; i++)
         s = [s,s,s,s].join("-");
-    
+
     lr.parse(s);
 }
 
