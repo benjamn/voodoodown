@@ -81,7 +81,7 @@ function combinator(c, no_conversion) {
             if (!m && h.involvedSet[rule_id])
                 return fail;
             if (h.evalSet[rule_id]) {
-                h.evalSet[rule_id] = false;                
+                h.evalSet[rule_id] = false;
                 memo[s] = Eval(s);
             }
             return memo[s];
@@ -175,16 +175,14 @@ var combinators = {
     }),
     rep0: combinator(function(p) {
         var next, state = this, ast = [];
-        while (state.ok)
-            if ((next = p(state)).ok)
-                ast.push((state = next).ast);
+        while (state.ok && (next = p(state)).ok)
+            ast.push((state = next).ast);
         return state.copy(0, ast);
     }),
     rep1: combinator(function(p) {
         var next, state = p(this), ast = [state.ast];
-        while (state.ok)
-            if ((next = p(state)).ok)
-                ast.push((state = next).ast);
+        while (state.ok && (next = p(state)).ok)
+            ast.push((state = next).ast);
         return state.copy(0, ast);
     }),
     idgen: counter(0)
