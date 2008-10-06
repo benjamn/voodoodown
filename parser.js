@@ -2,10 +2,10 @@
 function state(input, pos, ast) {
     this.pos = pos = pos || 0;
     this.ast = ast = ast || false;
-    
+
     var tos = pos + "." + this.input_id;
     this.toString = function() { return tos };
-    
+
     this.at = function(i) { return input[pos + i] };
     this.copy = function(gain, ast) {
         return new state(input, pos + (gain || 0), ast);
@@ -233,7 +233,9 @@ var c = inherit(core);
 with (combinators) {
     c.initial = cls("a-zA-Z_$");
     c.digit = cls("0-9");
-    c.integer = rep1(c.digit);
+    c.integer = handle(rep1(c.digit), function(ast) {
+        return Number(ast.join(""));
+    });
     c.ident = handle(seq(c.initial,
                          handle(rep0(choice(c.digit, c.initial)),
                                 "join", "")),

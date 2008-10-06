@@ -14,7 +14,7 @@ with (combinators) {
 
     calc.multiplicative = handle(seq(expr, cls("*/"), expr), function(ast) {
         var a = Number(ast[0]),
-            a = Number(ast[2]);
+            b = Number(ast[2]);
         switch (ast[1]) {
         case "*": return a * b;
         case "/": return a / b;
